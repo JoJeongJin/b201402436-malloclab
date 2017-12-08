@@ -61,7 +61,17 @@
  * Initialize: return -1 on error, 0 on success.
  */
 int mm_init(void) {
-   if((heap_listp= mem_sbrk(4*WSIZE))
+   if((heap_listp= mem_sbrk(4*WSIZE)) == NULL)
+	   return -1;
+
+   PUT(heap_listp, 0);
+   PUT(heap_listp + WSIZE, PACK(OVERHEAD, 1));
+   PUT(heap_listp + DSIZE, PACK(OVERHEAD, 1));
+   PUT(heap_listp + WSIZE + DIZE, PACK(0,1));
+   heap_listp += DSIZE;
+
+   if((extend_heap(CHUNKSIZE / WSIZE)) ==NULL)
+	   return -1;
 	
 	return 0;
 }
@@ -78,13 +88,45 @@ void *malloc (size_t size) {
  */
 void free (void *ptr) {
     if(!ptr) return;
+
+	size_t size = GET_SIZE(HDRP(ptr));
+
+	PUT(HDRP(ptr), PACK(size,0));
+	PUT(FTRP(ptr), PACK(size,0));
+
+	coalesce(ptr);
+
 }
 
 /*
  * realloc - you may want to look at mm-naive.c
  */
 void *realloc(void *oldptr, size_t size) {
-    return NULL;
+    size_t oldsize;
+	void *newptr;
+
+	if(size==0){
+		free(oldptr);
+		return 0;
+	}
+
+	if(oldptr ==NULL){
+		return malloc(size);
+	}
+
+	newptr = malloc(size);
+
+	if(!newptr){
+		return 0;
+	}
+
+	oldsize = *SIZE_PTR(oldptr);
+	if(size<oldsize) oldsize = size;
+	memcpy(newptr, oldptr, oldsize);
+
+	free(oldptr);
+
+	return newptr;
 }
 
 /*
