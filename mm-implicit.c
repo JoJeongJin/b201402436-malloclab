@@ -41,11 +41,29 @@
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(p) (((size_t)(p) + (ALIGNMENT-1)) & ~0x7)
 
+#define WSIZE 4
+#define DSIZE 8
+#define CHUNKSIZE (1<<12)
+#define OVERHEAD 8
+#define MAX(x,y) ((x) > (y) ? (x) : (y))
+#define PACK(size, alloc) ((size) | (alloc))
+#define GET(p) (*(size_t*)(p))
+#define PUT(p,val) (*(size_t *)(p) = (val))
+#define GET_SIZE(p) (GET(p) & ~0x7)
+#define GET_ALLOC(p) (GET(p) & 0x1)
+#define HDRP(bp) ((char *)(bp) - WSIZE)
+#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
+#define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE((char *)(bp)-WSIZE))
+#define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char *)(bp)-DSIZE))
+
+
 /*
  * Initialize: return -1 on error, 0 on success.
  */
 int mm_init(void) {
-    return 0;
+   if((heap_listp= mem_sbrk(4*WSIZE))
+	
+	return 0;
 }
 
 /*
