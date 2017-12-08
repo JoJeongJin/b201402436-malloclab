@@ -57,6 +57,8 @@
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char *)(bp)-DSIZE))
 
 
+//
+static char *heap_listp = 0;
 /*
  * Initialize: return -1 on error, 0 on success.
  */
@@ -80,7 +82,28 @@ int mm_init(void) {
  * malloc
  */
 void *malloc (size_t size) {
-    return NULL;
+  size_t asize;
+  size_t extendsize;
+  char *bp;
+
+  if(size==0)
+	  return NULL;
+
+  if(size<=DSIZE)
+	  asize = 2*DSIZE;
+  else
+	  asize = DSIZE * ((size +(DSIZE) +(DSIZE-1))/DSIZE);
+
+  if((bp=find_fit(asize))!=NULL){
+	  place(bp,asize);
+	  return bp;
+  }
+
+  extendsize = MAX(asize,CHUNKSIZE);
+  if((bp=extend_heap(extendsize/WSIZE))==NULL)
+	  return NULL;
+  place(bp,asize);
+  return bp;
 }
 
 /*
