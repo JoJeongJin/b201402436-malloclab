@@ -57,7 +57,6 @@
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char *)(bp)-DSIZE))
 
 
-//
 static char *heap_listp = 0;
 /*
  * Initialize: return -1 on error, 0 on success.
@@ -214,4 +213,49 @@ static void *coalesce(void *bp){
 		bp = PREV_BLKP(bp);
 	}
 	return bp;
+}
+
+static void place(void *bp, size_t asize){
+	size_t csize = GET_SIZE(HDRP(bp));
+
+	if((csize - asize) >= (2*DSIZE)){
+		PUT(HDRP(bp),PACK(asize,1));
+		PUT(FTRP(bp),PACK(asize,1));
+		bp = NEXT_BLKP(bp);
+		PUT(HDRP(bp),PACK(csize-asize,0));
+		PUT(FTRP(bp),PACK(csize-asize,0));
+	}
+	else{
+		PUT(HDRP(bp),PACK(csize,1));
+		PUT(FTRP(bp),PACK(csize,1));
+	}
+}
+
+static void *extend_heap(size_t words)
+{
+	char *bp;
+	size_t size;
+
+	size = (words % 2) ? (words+1) *WSIZE : words * WSIZE;
+	if((long)(bp=mem_sbrk(size))==-1)
+		return NULL;
+
+	PUT(HDRP(bp), PACK(size,0));
+	PUT(FTRP(bp), PACK(size,0));
+	PUT(HDRP(NEXT_BLKP(bp)), PACK(0,1));
+
+	return coalesce(bp);
+}
+
+static void *find_fit(size_t asize)
+{
+	void *bp;
+
+	for(bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)){
+		if(!GET_ALLOC(HDRP(bp)) && (asize<=GET_SIZE(HDRP(bp)))){
+			return bp;
+		}
+	}
+	return NULL;
+#endif
 }
