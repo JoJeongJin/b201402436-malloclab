@@ -47,28 +47,33 @@
 #define OVERHEAD 8
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
 #define PACK(size, alloc) ((size) | (alloc))
-#define GET(p) (*(size_t*)(p))
-#define PUT(p,val) (*(size_t *)(p) = (val))
+#define GET(p) (*(unsigned int *)(p))
+#define PUT(p,val) (*(unsigned int *)(p) = (val))
 #define GET_SIZE(p) (GET(p) & ~0x7)
 #define GET_ALLOC(p) (GET(p) & 0x1)
-#define HDRP(bp) ((char *)(bp) - WSIZE)
-#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
-#define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE((char *)(bp)-WSIZE))
-#define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char *)(bp)-DSIZE))
-
+#define HDRP(bp)	((char *)(bp) - WSIZE)
+#define FTRP(bp)	((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
+#define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE)))
+#define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp)-DSIZE)))
+#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+#define SIZE_PTR(p) ((size_t*)(((char*)(p)) - SIZE_T_SIZE))
 
 static char *heap_listp = 0;
+static void *coalesce(void *bp);
+static void place(void *bp, size_t asize);
+static void *extend_heap(size_t words);
+static void *find_fit(size_t asize);
 /*
  * Initialize: return -1 on error, 0 on success.
  */
 int mm_init(void) {
-   if((heap_listp= mem_sbrk(4*WSIZE)) == NULL)
+   if((heap_listp= mem_sbrk(4*WSIZE)) == (void *)-1)
 	   return -1;
 
    PUT(heap_listp, 0);
    PUT(heap_listp + WSIZE, PACK(OVERHEAD, 1));
    PUT(heap_listp + DSIZE, PACK(OVERHEAD, 1));
-   PUT(heap_listp + WSIZE + DIZE, PACK(0,1));
+   PUT(heap_listp + WSIZE + DSIZE, PACK(0,1));
    heap_listp += DSIZE;
 
    if((extend_heap(CHUNKSIZE / WSIZE)) ==NULL)
@@ -109,7 +114,7 @@ void *malloc (size_t size) {
  * free
  */
 void free (void *ptr) {
-    if(!ptr) return;
+    if(ptr==0) return;
 
 	size_t size = GET_SIZE(HDRP(ptr));
 
@@ -236,7 +241,7 @@ static void *extend_heap(size_t words)
 	char *bp;
 	size_t size;
 
-	size = (words % 2) ? (words+1) *WSIZE : words * WSIZE;
+	size = (words % 2) ? (words+1) * WSIZE : words * WSIZE;
 	if((long)(bp=mem_sbrk(size))==-1)
 		return NULL;
 
