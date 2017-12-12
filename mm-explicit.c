@@ -70,21 +70,65 @@
 #define NEXT_FREE_BLKP(bp) ((char *)GET8((char *)(bp)))
 #define PREV_FREE_BLKP(bp) ((char *)GET8((char *)(bp) + WSIZE))
 
+#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+
+#define SIZE_PTR(p) ((size_t*)(((char*)(p)) - SIZE_T_SIZE))
+
+#define MIN_BLKSIZE 24
+
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(p) (((size_t)(p) + (ALIGNMENT-1)) & ~0x7)
 
+static char *heap_listp = 0;
+static char *heap_start = 0;
+static char *epilogue = 0;
+
+static void #extend_heap(size_t words);
+static void place(void *bp, size_t asize);
+static void *find_fit(size_t asize);
+static void *coalesce(void *bp);
+static void delete_freenode(void *bp);
+static void insert_freenode(void *bp);
 /*
  * Initialize: return -1 on error, 0 on success.
  */
 int mm_init(void) {
-    return 0;
+	if((heap_listp = mem_sbrk(DSIZE + 4 * HDRSIZE)) == NULL)
+	return -1;
+
+	heap_start = heap_listp;
+
+	PUT(heap_listp, NULL);
+	PUT(heap_listp + WSIZE, NULL);
+	PUT(heap_listp + DSIZE, 0);
+	PUT(heap_listp + DSIZE + HDRSIZE, PACK(OVERHEAD,1));
+	PUT(heap_listp + DSIZE + HDRSIZE + FTRSIZE, PACK(OVERHEAD, 1));
+	PUT(heap_listp + DSIZE + 2 * HDRSIZE + FTRSIZE, PACK(0,1));
+
+	heap_listp += DSIZE + DSIZE;
+
+	epilogue = heap_listp + HDRSIZE;
+
+	if(extend_heap(CHUNKSIZE/WSIZE) == NULL)
+		return -1;
+
+	return 0;
 }
 
 /*
  * malloc
  */
 void *malloc (size_t size) {
-    return NULL;
+	char *bp;
+	unsigned asize;
+	unsigned extendsize;
+
+	if(size<=0)
+		return NULL;
+
+	asize = MAX(ALIGN(size + SIZE_T_SIZE), MIN_BLKSIZE);
+
+	return NULL;
 }
 
 /*
