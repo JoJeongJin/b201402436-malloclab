@@ -83,7 +83,6 @@ static char *heap_listp = 0;
 static char *heap_start = 0;
 static char *epilogue = 0;
 
-static void checkblock(void *bp);
 static void *extend_heap(size_t words);
 static void place(void *bp, size_t asize);
 static void *find_fit(size_t asize);
@@ -219,13 +218,6 @@ static int aligned(const void *p) {
  * mm_checkheap
  */
 void mm_checkheap(int verbose) {
-	char *bp = heap_listp;
-
-	checkblock(heap_listp);
-
-	for(bp = heap_listp; GET_SIZE(HDRP(bp))>0; bp=NEXT_BLKP(bp)){
-		checkblock(bp);
-	}
 
 }
 
@@ -306,4 +298,43 @@ static void place(void *bp, size_t asize){
 	}
 }
 
+static void *coalesce(void *bp){
+	size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
+	size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
+	size_t size = GET_SIZE(HDRP(bp));
+
+	if(prev_alloc && next_alloc){
+		insert_freenode(bp);
+		return bp;
+	}
+
+	else if(prev_alloc && !next_alloc){
+		size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
+		delete_freenode(NEXT_BLKP(bp));
+		PUT(HDRP(bp), PACK(size,0));
+		PUT(FTRP(bp), PACK(size,0));
+		insert_freenode(bp);
+		return bp;
+	}
+
+	else if(!prev_alloc && next_alloc){
+		size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+		delete_freenode(PREV_BLKP(bp));
+		PUT(FTRP(bp), PACK(size, 0));
+		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+		insert_freenode(PREV_BLKP(bp));
+		return PREV_BLKP(bp);
+	}
+	
+	else if(!prev_alloc && !next_alloc){
+		size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
+		delete_freenode(PREV_BLKP(bp));
+		delete_freenode(NEXT_BLKP(bp));
+		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+		PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+		insert_freenode(PREV_BLKP(bp));
+
+		return PREV_BLKP(bp);
+	}
+}
 
