@@ -64,8 +64,8 @@
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char*)(bp) - DSIZE))
 
-#define NEXT_FREEP(bp) ((char *)(bp))
-#define PREV_FREEP(bp) ((char *)(bp) + WSIZE)
+#define NEXTP(bp) (long *)((char *)(bp))
+#define PREVP(bp) (long *)((char *)(bp) + DISZE)
 
 #define NEXT_FREE_BLKP(bp) ((char *)GET8((char *)(bp)))
 #define PREV_FREE_BLKP(bp) ((char *)GET8((char *)(bp) + WSIZE))
@@ -254,6 +254,26 @@ static void *find_fit(size_t asize asize){
 		}
 	}
 	return NULL;
+}
+
+static void delete_freenode(void *bp){
+	void *next_free_block_addr = (void *)*NEXTP(bp);
+	void *prev_free_block_addr = (void *)*PREVP(bp);
+	PUT8(NEXTP(prev_free_block_addr), next_free_block_addr);
+	if(next_free_block_addr != NULL){
+		PUT_ADDR(PREVP(next_free_block_addr), prev_free_block_addr);
+	}
+}
+
+static void insert_freenode(void *bp){
+	void *next_free_block_addr = (void *)*NEXTP(heap_listp);
+	PUT8(NEXTP(bp), *NEXTP(heap_listp));
+	PUT8(PREVP(bp), heap_listp);
+
+	PUT8(NEXTP(heap_listp), bp);
+	if(next_free_block_addr != NULL){
+		PUT8(PREVP(next_free_block_addr), bp);
+	}
 }
 
 
