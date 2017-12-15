@@ -65,7 +65,7 @@
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char*)(bp) - DSIZE))
 
 #define NEXTP(bp) (long *)((char *)(bp))
-#define PREVP(bp) (long *)((char *)(bp) + DISZE)
+#define PREVP(bp) (long *)((char *)(bp) + DSIZE)
 
 #define NEXT_FREE_BLKP(bp) ((char *)GET8((char *)(bp)))
 #define PREV_FREE_BLKP(bp) ((char *)GET8((char *)(bp) + WSIZE))
@@ -83,6 +83,7 @@ static char *heap_listp = 0;
 static char *heap_start = 0;
 static char *epilogue = 0;
 
+static void checkblock(void *bp);
 static void *extend_heap(size_t words);
 static void place(void *bp, size_t asize);
 static void *find_fit(size_t asize);
@@ -245,7 +246,7 @@ static void* extend_heap(size_t words){
 	return coalesce(bp);
 }
 
-static void *find_fit(size_t asize asize){
+static void *find_fit(size_t asize){
 	void *bp;
 
 	for(bp = heap_listp; bp!=NULL; bp=(char *)*NEXTP(bp)){
@@ -261,7 +262,7 @@ static void delete_freenode(void *bp){
 	void *prev_free_block_addr = (void *)*PREVP(bp);
 	PUT8(NEXTP(prev_free_block_addr), next_free_block_addr);
 	if(next_free_block_addr != NULL){
-		PUT_ADDR(PREVP(next_free_block_addr), prev_free_block_addr);
+		PUT8(PREVP(next_free_block_addr), prev_free_block_addr);
 	}
 }
 
@@ -273,6 +274,35 @@ static void insert_freenode(void *bp){
 	PUT8(NEXTP(heap_listp), bp);
 	if(next_free_block_addr != NULL){
 		PUT8(PREVP(next_free_block_addr), bp);
+	}
+}
+
+static void place(void *bp, size_t asize){
+	size_t csize = GET_SIZE(HDRP(bp));
+
+	if((csize - asize) >= MIN_BLKSIZE){
+		void *next_free_block_addr = (void *)*NEXTP(bp);
+		void *prev_free_block_addr = (void *)*PREVP(bp);
+		PUT(HDRP(bp), PACK(asize, 1));
+		PUT(FTRP(bp), PACK(asize, 1));
+		bp = NEXT_BLKP(bp);
+
+		PUT(HDRP(bp), PACK(csize-asize, 0));
+		PUT(FTRP(bp), PACK(csize-asize, 0));
+
+		PUT8(NEXTP(bp), next_free_block_addr);
+		PUT8(PREVP(bp), prev_free_block_addr);
+		PUT8(NEXTP(prev_free_block_addr), bp);
+
+		if(next_free_block_addr != NULL){
+			PUT8(PREVP(next_free_block_addr), bp);
+		}
+
+	}
+	else {
+		PUT(HDRP(bp), PACK(csize, 1));
+		PUT(FTRP(bp), PACK(csize, 1));
+		delete_freenode(bp);
 	}
 }
 
