@@ -83,7 +83,7 @@ static char *heap_listp = 0;
 static char *heap_start = 0;
 static char *epilogue = 0;
 
-static void #extend_heap(size_t words);
+static void *extend_heap(size_t words);
 static void place(void *bp, size_t asize);
 static void *find_fit(size_t asize);
 static void *coalesce(void *bp);
@@ -128,7 +128,16 @@ void *malloc (size_t size) {
 
 	asize = MAX(ALIGN(size + SIZE_T_SIZE), MIN_BLKSIZE);
 
-	return NULL;
+	if((bp = find_fit(asize)) !=NULL){
+		place(bp,asize);
+		return bp;
+	}
+
+	extendsize = MAX(asize,CHUNKSIZE);
+	if((bp = extend_heap(extendsize/WSIZE)) == NULL)
+		return NULL;
+	place(bp,asize);
+	return bp;
 }
 
 /*
@@ -136,13 +145,41 @@ void *malloc (size_t size) {
  */
 void free (void *ptr) {
     if(!ptr) return;
+	size_t size = GET_SIZE(HDRP(ptr));
+
+	PUT(HDRP(ptr), PACK(size,0));
+	PUT(FTRP(ptr), PACK(size,0));
+	coalesce(ptr);
 }
 
 /*
  * realloc - you may want to look at mm-naive.c
  */
 void *realloc(void *oldptr, size_t size) {
-    return NULL;
+    size_t oldsize;
+	void *newptr;
+
+	if(size==0){
+		free(oldptr);
+		return 0;
+	}
+	if(oldptr==NULL){
+		return malloc(size);
+	}
+
+	newptr = malloc(size);
+
+	if(!newptr){
+		return 0;
+	}
+
+	oldsize = *SIZE_PTR(oldptr);
+	if(size<oldsize) oldsize = size;
+	memcpy(newptr, oldptr, oldsize);
+
+	free(oldptr);
+
+	return newptr;
 }
 
 /*
@@ -151,7 +188,13 @@ void *realloc(void *oldptr, size_t size) {
  * needed to run the traces.
  */
 void *calloc (size_t nmemb, size_t size) {
-    return NULL;
+	size_t bytes = nmemb * size;
+	void *newptr;
+
+	newptr = malloc(bytes);
+	memset(newptr, 0, bytes);
+
+	return newptr;
 }
 
 
@@ -175,4 +218,42 @@ static int aligned(const void *p) {
  * mm_checkheap
  */
 void mm_checkheap(int verbose) {
+	char *bp = heap_listp;
+
+	checkblock(heap_listp);
+
+	for(bp = heap_listp; GET_SIZE(HDRP(bp))>0; bp=NEXT_BLKP(bp)){
+		checkblock(bp);
+	}
+
 }
+
+static void* extend_heap(size_t words){
+	void *bp;
+	size_t size;
+
+	size = (words%2) ? (words+1) *WSIZE : words * WSIZE;
+	if((long)(bp = mem_sbrk(size)) < 0)
+		return NULL;
+
+	epilogue = bp + size - HDRSIZE;
+
+	PUT(HDRP(bp), PACK(size,0));
+	PUT(FTRP(bp), PACK(size,0));
+	PUT(epilogue, PACK(0,1));
+
+	return coalesce(bp);
+}
+
+static void *find_fit(size_t asize asize){
+	void *bp;
+
+	for(bp = heap_listp; bp!=NULL; bp=(char *)*NEXTP(bp)){
+		if(!GET_ALLOC(HDRP(bp)) && (asize<= GET_SIZE(HDRP(bp)))){
+			return bp;
+		}
+	}
+	return NULL;
+}
+
+
